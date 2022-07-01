@@ -23,8 +23,8 @@ namespace RecommendationSystem.ClusteringAlgorithm
         private Cluster[][] clusters;
 
         /* Vectors/Lists of training data. */
-        private List<double[]> TrainingData;
-        private List<double[]> TestData;
+        private List<Variable[]> TrainingData;
+        private List<Variable[]> TestData;
 
 
         /* Results of Test() */
@@ -34,7 +34,7 @@ namespace RecommendationSystem.ClusteringAlgorithm
 
 
 
-        public Kohonen(int mapDim, int dataDim, int epochs, List<double[]> trainData, List<double[]> testData)
+        public Kohonen(int mapDim, int dataDim, int epochs, List<Variable[]> trainData, List<Variable[]> testData)
         {
 
             // Data dimensions is Variable though..
@@ -49,8 +49,14 @@ namespace RecommendationSystem.ClusteringAlgorithm
             InitialLearningRate = 0.8;
 
 
-            var random = new Random();
+            InitializeRandomClusters();
+        }
 
+        public void SetPrefetchThreshold(double pfThreshold) => PrefetchThreshold = pfThreshold;
+
+        private void InitializeRandomClusters()
+        {
+            var random = new Random();
             clusters = new Cluster[MapDimensions][];
 
 
@@ -62,8 +68,8 @@ namespace RecommendationSystem.ClusteringAlgorithm
                 for (int j = 0; j < MapDimensions; j++)
                 {
                     clusters[i][j] = new Cluster();
-                    clusters[i][j].Prototype = new double[dataDim];
-                    for (int k = 0; k < dataDim; k++)
+                    clusters[i][j].Prototype = new double[DataDimensions];
+                    for (int k = 0; k < DataDimensions; k++)
                     {
                         clusters[i][j].Prototype[k] = random.NextDouble();
                     }
@@ -71,11 +77,138 @@ namespace RecommendationSystem.ClusteringAlgorithm
             }
         }
 
-        public void SetPrefetchThreshold(double pfThreshold) => PrefetchThreshold = pfThreshold;
-        
+
         public bool Train()
         {
-            throw new NotImplementedException();
+            double learningRate = 0;
+            double squareSize = 0;
+            int radius = 0;
+
+            /* Step 1:
+             *  Initialize map with random vectors
+             *  (As done in the constructor) */
+
+
+            /*  Repeat 'Epoch' times :*/
+            for (int currentEpoch = 0; currentEpoch < Epochs; currentEpoch++)
+            {
+                Console.WriteLine($"Epoch {currentEpoch}. \r");
+
+                /* Step 2 : 
+                 *  Calculate the squareSize and the learning Rate.
+                 *  They decrease lineary with the number of Epochs. */
+                learningRate = InitialLearningRate * (1 - ((double)currentEpoch / Epochs));
+                squareSize = ((double)MapDimensions / 2) * (1 - ((double)currentEpoch / Epochs));
+                radius = (int)squareSize;
+
+                /* Step 3 : 
+                 *  Every input vector is presented to the map (always in the same order => TODO: Room for improvement?)
+                 *  For each vector its Best Maching Unit is found, and :      */
+
+                foreach (var input in TrainingData)
+                {
+                    double bestDistance = DataDimensions;
+                    int bestClusterX = 0;
+                    int bestClusterY = 0;
+
+
+                    // TODO: Double loop => Performance?
+                    for (int x = 0; x < MapDimensions; x++)
+                    {
+                        for (int y = 0; y < MapDimensions; y++)
+                        {
+                            double currentDistance = 0;
+                            Variable[] prototype = clusters[x][y].Prototype;
+
+                            for (int datIndex = 0; datIndex < DataDimensions; datIndex++)
+                            {
+                                currentDistance += Math.Pow(input[datIndex].SOMDistance() - prototype[datIndex].SOMDistance(), 2);
+                            }
+
+                            currentDistance = Math.Sqrt(currentDistance);
+
+                            /* Does nothing if the distance is the same 
+                             * => Is an unlikely case anyway */
+                            if (currentDistance < bestDistance)
+                            {
+                                bestClusterX = x;
+                                bestClusterY = y;
+                                bestDistance = currentDistance;
+                                // TODO: Can the performance be improved here?
+                            }
+                        }
+                    }
+
+                    /* Security for index out of bounds for the clusters. */
+                    int xBegin = Math.Max(bestClusterX - radius, 0);
+                    int xEnd = Math.Min(bestClusterX + radius, MapDimensions - 1);
+
+                    int yBegin = Math.Max(bestClusterY - radius, 0);
+                    int yEnd = Math.Min(bestClusterY + radius, MapDimensions - 1);
+
+
+                    /* Step 4 :
+                     *  All nodes within the neighbourhood of the Best Matching Unit are changed,
+                     *  This algorithm does NOT implement distance relative learning */
+
+                    for (int x = xBegin; x <= xEnd; x++)
+                    {
+                        for (int y = yBegin; y <= yEnd; y++)
+                        {
+                            Variable[] prototype = clusters[x][y].Prototype;
+
+                            for (int index = 0; index < DataDimensions; index++)
+                            {
+                                var curr = ((1 - learningRate) * prototype[index].SOMDistance()) + (learningRate * input[index].SOMDistance());
+                                prototype[index].SOMDistance() = curr;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine($"Completed {Epochs} training Epochs.\r");
+
+            /* Assing all members to their closest cluster. */
+            for (int member = 0; member < TrainingData.Count; member++)
+            {
+
+                Variable[] memberData = TrainingData[member];
+
+                double bestDistance = DataDimensions;
+                int bestClusterDim1 = 0;
+                int bestClusterDim2 = 0;
+
+                for (int i = 0; i < MapDimensions; i++)
+                {
+                    for (int i2 = 0; i2 < MapDimensions; i2++)
+                    {
+
+                        double currentDistance = 0;
+                        Variable[] prototype = clusters[i][i2].Prototype;
+
+                        for (int index = 0; index < DataDimensions; index++)
+                        {
+                            currentDistance += Math.Pow(memberData[index].SOMDistance() - prototype[index].SOMDistance(), 2);
+                        }
+
+                        currentDistance = Math.Sqrt(currentDistance);
+
+                        if (currentDistance < bestDistance)
+                        {
+                            bestClusterDim1 = i;
+                            bestClusterDim2 = i2;
+                            bestDistance = currentDistance;
+                        }
+                    }
+                }
+                clusters[bestClusterDim1][bestClusterDim2].CurrentMembers.Add(memberData[member]);
+            }
+
+
+
+            /* Kohonen SOM can take quite a while, so we could present the user with a progress bar. */
+            return true;
         }
 
         public bool Test()
@@ -130,12 +263,12 @@ namespace RecommendationSystem.ClusteringAlgorithm
 
     public class Cluster
     {
-        public double[] Prototype;
-        public HashSet<Node> CurrentMembers; /* Indexes of the current members. */
+        public Variable[] Prototype;
+        public HashSet<Variable> CurrentMembers; /* Indexes of the current members. */
 
         public Cluster()
         {
-            CurrentMembers = new HashSet<Node>();
+            CurrentMembers = new HashSet<Variable>();
         }
     }
 }

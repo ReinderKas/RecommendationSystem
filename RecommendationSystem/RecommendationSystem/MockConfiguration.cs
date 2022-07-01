@@ -12,7 +12,7 @@ namespace RecommendationSystem
         public Guid FeatureModelId;
         public List<Requirement> Requirements;
 
-        public List<Node> Nodes;
+        public List<Variable> Nodes;
         public List<Constraint> Constraints;
 
 
@@ -33,23 +33,23 @@ namespace RecommendationSystem
             Requirements.Add(new Requirement(GetNodeById(NodeId), false, 0));
         }
 
-        public Node AddNode()
+        public Variable AddNode()
         {
-            var newNode = new Node();
+            var newNode = new Variable();
             Nodes.Add(newNode);
             return newNode;
         }
 
-        public Node GetNodeById(Guid NodeId) => Nodes.FirstOrDefault(n => n.Id == NodeId);
+        public Variable GetNodeById(Guid NodeId) => Nodes.FirstOrDefault(n => n.Id == NodeId);
     }
 
     public class Requirement
     {
-        public Node Node;
+        public Variable Node;
         public bool Selected;
         public double Value;
 
-        public Requirement(Node node, bool selected, double value)
+        public Requirement(Variable node, bool selected, double value)
         {
             if (node == null)
                 throw new Exception("Node does not exist in the Configuration.");
@@ -60,27 +60,40 @@ namespace RecommendationSystem
         }
     }
 
-    public class Node
+    public class Variable
     {
         public Guid Id;
 
+        public bool Selected;
+        public double Value;
+        private double SomDistance; // TODO: How do you design this? (correctly at least.)
 
         public Requirement Requirement;
 
-        public bool Selected;
-        public double Value;
+        private static Random random;
 
 
-        public Node()
+        public Variable()
         {
+            if (random == null)
+                random = new Random(1);
+
             Id = Guid.NewGuid();
             Selected = false;
             Value = 0;
+            SomDistance = random.NextDouble();
         }
 
         public void AddRequirement(Requirement requirement)
         {
             Requirement = requirement;
+        }
+
+        // Distance within a Self Organizing Map.
+        public double SOMDistance()
+        {
+            //TODO: How do you design this?
+            return SomDistance;
         }
     }
 
@@ -88,9 +101,9 @@ namespace RecommendationSystem
     {
         public Guid Id;
         public ConstraintType Type;
-        public List<Node> Variables;
+        public List<Variable> Variables;
 
-        public Constraint(ConstraintType type = ConstraintType.Optional, params Node[] Nodes)
+        public Constraint(ConstraintType type = ConstraintType.Optional, params Variable[] Nodes)
         {
             Id = Guid.NewGuid();
             Type = type;
