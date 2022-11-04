@@ -6,11 +6,15 @@ namespace RecommendationSystem
     {
         static void Main(string[] args)
         {
-            var Clustering = new RunClustering(Guid.NewGuid());
+            var clusteringAlgorithm = new Kohonen()
+
+            var Clustering = new (Guid.NewGuid());
 
             Clustering.InitKohonen();
             Clustering.Train();
             Clustering.Test();
+
+
 
             //Clustering.ShowPrototypes();
             Clustering.ShowMembers();
